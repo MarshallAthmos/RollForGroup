@@ -18,7 +18,7 @@ class Player:
         Initializes a new Player object.
         """
         self.name = name
-        self.id = hash(name) if id is None else id
+        self.id = str(hash(name)) if id is None else id
         self.slot_availabilities = slot_availabilities
         self.game_interests = game_interests
 
@@ -68,6 +68,9 @@ class Player:
         """
         return dict(self.__dict__)
 
+    def from_dict(self, d:dict):
+        self = self.__init__(**d)
+
     def __str__(self) -> str:
         """
         Returns a string representation of the player object.
@@ -94,30 +97,41 @@ class Game:
         session (int, optional): The session number within the slot where the game is planned. Defaults to None.
         repetitions (int): The number of times the game has been planned already.
     """
-    def __init__(self, name:str, dm:Player, max_player_count:int, min_player_count:int = 3, slot:int = None, max_repetitions:int = 1, fixed_players:Optional[List[Player]] = []):
+    
+    # TODOs
+    # - Add "Pitch" Field
+    # - Add Daytime Preference support
+    
+    def __init__(self, name:str, dm:Player, max_player_count:int, min_player_count:int = 3, slot:int = None, max_repetitions:int = 1, fixed_players:Optional[List[Player]] = [], allowed_slots:List[bool]=[], pitch:str=None, id:str=None):
         """
         Initializes a new Game object.
         """
         self.name = name
-        self.id = hash(name)
+        self.id = str(hash(name)) if id is None else id
         self.dm = dm
         self.max_player_count = max_player_count
         self.min_player_count = min_player_count
-        self.fixed_player = fixed_players
+        self.fixed_players = fixed_players
         self.players = [] + fixed_players
         self.slot = slot
         self.session = None
         self.max_repetitions = max_repetitions
         self.repetitions = 0
+        self.pitch = pitch
+        self.allowed_slots = allowed_slots
 
-    def to_dict(self) -> dict:
-        """
-        Returns a dictionary representation of the game object.
 
-        Returns:
-            dict: A dictionary containing the game's attributes.
-        """
-        return dict(self.__dict__)
+    def to_dict(self, mode:str="shallow") -> dict:
+        if mode == "shallow":
+            output = dict(self.__dict__)
+        elif mode == "deep":
+            output = dict(self.__dict__)
+            output["dm"] = output["dm"].name
+            output["players"] = [player.name for player in output["players"]]
+            output["fixed_players"] = [player.name for player in output["fixed_players"]]
+        else:
+            raise(ValueError("mode must be either 'shallow' or 'deep'."))
+        return output
     
     def __str__(self):
         """
@@ -257,14 +271,20 @@ class Gameplan:
                     current_game = fixed_games.pop()
 
                 else:
-                 # Loop until a game is successfully planned (or limit is reached)
+                    if len(self.games) == 0:
+                        slot_sessions[session] = None
+                        print("No more Games to plan!")
+                        break
+                    # Loop until a game is successfully planned (or limit is reached)
                     planned = False
                     break_counter = 0
                     while not planned:
                         current_game = random.choice(self.games)
+                        if current_game.allowed_slots == [] or current_game.allowed_slots is None:
+                            current_game.allowed_slots = [True for _ in range(self.total_slots)] 
                         print(f"Trying: {current_game.name} by {current_game.dm.name}")
                          # Check if the DM is available for the chosen game
-                        if current_game.dm.id in available_players.keys() or current_game.dm.id == "no_dm":
+                        if (current_game.dm.id in available_players.keys() or current_game.dm.id == "no_dm") and current_game.allowed_slots[slot_index] and all(player.id in available_players.keys() for player in current_game.fixed_players):
                             planned = True
                         else:
                             print("DM not available!")
@@ -283,13 +303,17 @@ class Gameplan:
 
                 # Remove the DM (if applicable) from the available players pool
                 if modified_game.dm.id != "no_dm":
-                    print(f"Deleting: {modified_game.dm.name} from {[player.name for player in available_players.values()]}")
+                    print(f"Deleting DM {modified_game.dm.name} from {[player.name for player in available_players.values()]}")
                     del(available_players[modified_game.dm.id]) 
+
+                for player in current_game.fixed_players:
+                    print(f"Adding fixed player: {player.name}")
+                    del(available_players[player.id])
 
                 # Find players interested in the chosen game (excluding the DM)
                 # Randomly select players from the matched players (up to the game's max player count)
                 # Add the selected players to the modified game object
-                matching_players = [player for player in available_players.values() if modified_game.name in player.game_interests and player != modified_game.dm]
+                matching_players = [player for player in available_players.values() if modified_game.id in (game.id for game in player.game_interests) and player != modified_game.dm]
                 print(f"Matched: {[player.name for player in matching_players]}")
                 added_players = random.sample(population = matching_players, k = min(modified_game.max_player_count, len(matching_players)))
                 print(f"Adding Players:  {[player.name for player in added_players]}")
@@ -301,7 +325,7 @@ class Gameplan:
                     del(modified_game)
                 else:
                     # Remove players from the available pool for this session
-                    for player in modified_game.players:
+                    for player in added_players:
                         print(f"Deleting: {player.name} from {[player.name for player in available_players.values()]}")
                         del(available_players[player.id])
                     
@@ -342,5 +366,12 @@ class Gameplan:
 
         return slot_sessions
 
-    def to_dict(self) -> dict:
-        return dict(self.__dict__)
+    def to_dict(self, mode:str="shallow") -> dict:
+        if mode == "shallow":
+            output = dict(self.__dict__)
+        elif mode == "deep":
+            output = dict(self.__dict__)
+            print("not yet implemented")
+        else:
+            raise(ValueError("mode must be either 'shallow' or 'deep'."))
+        return output
