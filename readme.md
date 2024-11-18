@@ -38,7 +38,6 @@ This Python app, powered by Streamlit, helps you:
 **Advanced Scheduling Algorithms:** Explore more sophisticated algorithms for optimal game scheduling.
 **Player Preferences:** Allow players to specify their preferred games and time slots.
 **Game Difficulty and Duration:** Consider game difficulty and duration when assigning players.
-**Docker usage:** We'll add a simple way to create your own docker container for this application.
 
 **Let's Roll!**
 Ready to streamline your DnD planning? Give RollForGroup a try and experience the magic of automated game scheduling!
